@@ -1,0 +1,7 @@
+flwr
+tensorflow
+scikit-learn
+pillow
+matplotlib
+tqdm
+tensorflow-privacy  # optional
