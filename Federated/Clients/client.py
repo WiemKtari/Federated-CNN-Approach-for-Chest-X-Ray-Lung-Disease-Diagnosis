@@ -15,9 +15,10 @@ AUTOTUNE = tf.data.AUTOTUNE
 # These are passed from Docker or command line
 TRAIN_DIR = os.environ.get("TRAIN_DIR", "data/train")
 TEST_DIR  = os.environ.get("TEST_DIR", "data/test")
-SERVER_ADDRESS = os.environ.get("SERVER_ADDRESS", "127.0.0.1:8080")
+SERVER_ADDRESS = "192.168.100.196:8080"
 
 # ===============================
+
 # Data Augmentation (same as notebook)
 # ===============================
 data_augmentation = tf.keras.Sequential([
@@ -97,14 +98,14 @@ def load_datasets():
 # Class Weight Calculation (same)
 # ===============================
 def compute_class_weights():
-    normal_count = len(os.listdir(os.path.join(TRAIN_DIR, "NORMAL")))
-    pneumonia_count = len(os.listdir(os.path.join(TRAIN_DIR, "PNEUMONIA")))
+    normal_count = len(os.listdir(os.path.join(TRAIN_DIR, "Normal")))
+    malade_count = len(os.listdir(os.path.join(TRAIN_DIR, "Malade")))
 
-    total = normal_count + pneumonia_count
+    total = normal_count + malade_count
 
     class_weight = {
         0: total / (2 * normal_count),
-        1: total / (2 * pneumonia_count)
+        1: total / (2 * malade_count)
     }
 
     return class_weight
@@ -147,13 +148,7 @@ class Client(fl.client.NumPyClient):
     def evaluate(self, parameters, config):
         self.model.set_weights(parameters)
         loss, acc = self.model.evaluate(self.test_ds, verbose=0)
-        return float(loss), self.num_examples, {"accuracy": float(acc)}
-    
-    def evaluate(self, parameters, config):
-        self.model.set_weights(parameters)
-        loss, acc = self.model.evaluate(self.test_ds, verbose=0)
-        # RETURN LOSS IN METRICS SO SERVER CAN TRACK CONVERGENCE
-        return float(loss), self.num_examples, {"loss": float(loss), "accuracy": float(acc)}
+        return float(loss), self.num_examples, {"loss":float(loss),"accuracy": float(acc)}
 
 
 # ===============================
@@ -171,3 +166,59 @@ if __name__ == "__main__":
         server_address=SERVER_ADDRESS,
         client=client
     )
+    # ========================================================
+    #   ÉVALUATION FINALE APRÈS TOUTES LES ROUNDS FL
+    # ========================================================
+
+    print("\n[INFO] Évaluation finale du modèle global...\n")
+
+    final_model = client.model
+
+    # --- Loss & Accuracy ---
+    loss, acc = final_model.evaluate(test_ds, verbose=1)
+    print(f"\nFinal Test Loss : {loss:.4f}")
+    print(f"Final Test Accuracy : {acc:.4f}")
+
+    # --- Prédictions complètes ---
+    y_true = []
+    y_pred = []
+
+    for batch, labels in test_ds:
+        preds = final_model.predict(batch, verbose=0)
+        preds = (preds >= 0.5).astype(int).reshape(-1)
+        y_true.extend(labels.numpy())
+        y_pred.extend(preds)
+
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+
+    # --- Metrics + Classification Report ---
+    from sklearn.metrics import confusion_matrix, classification_report
+
+    print("\n============= Classification Report =============")
+    print(classification_report(y_true, y_pred, digits=4))
+
+    # --- Confusion Matrix ---
+    cm = confusion_matrix(y_true, y_pred)
+
+    print("\n============= Confusion Matrix =============")
+    print(cm)
+
+    # --- Courbe du Loss (dernier entraînement local) ---
+    import matplotlib.pyplot as plt
+
+    if hasattr(final_model, "history") and final_model.history:
+        history = final_model.history
+
+        plt.figure(figsize=(6, 4))
+        plt.plot(history.history["loss"], label="train_loss")
+        if "val_loss" in history.history:
+            plt.plot(history.history["val_loss"], label="val_loss")
+
+        plt.title("Courbe du Loss (dernier round local)")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.show()
+    else:
+        print("\n[WARNING] Aucun historique d'entraînement disponible pour tracer la courbe du loss.")
