@@ -4,23 +4,41 @@ This repository contains an experimental study comparing local CNN training and 
 The project evaluates how model performance changes when training data is centralized versus distributed across multiple clients, simulating real hospital environments where data privacy is essential.
 
 Federated-CNN-Approach-for-Chest-X-Ray-Lung-Disease-Diagnosis/
+
 │
+
 ├── federated/
+
 │   ├── client
+
 |        ├── model.py
+
 |        ├── utils.py
+
 |        ├── client.py
+
 |        ├── requirements.txt
+
 │   ├── server.py
+
 │   ├── model.py
+
 │   ├── requirements.txt
+
 │   └── ...
+
 │
+
 └── local_models/
+
     ├── client_1.ipynb     # Local model 1
+    
     ├── client_2.ipynb     # Local model 2
+    
     ├── client_3.ipynb     # Local model 3
+    
     └── client_4.ipynb     # Local model 4
+    
     
 * local_models/ contains CNN models trained separately on each dataset (simulating different hospitals).
 * federated/ contains the Flower server and clients used for federated training.
